@@ -452,7 +452,66 @@ private:
  */
 class SparseDirectMUMPS : public EnableObserverPointer
 {
-private:
+public:
+  /**
+   * Declare type for container size.
+   */
+  using size_type = types::global_dof_index;
+  struct AdditionalData
+  {
+    AdditionalData() = default;
+    bool output_details;
+    
+  };
+  /**
+   * Constructor
+   */
+  SparseDirectMUMPS(const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * Destructor
+   */
+  ~SparseDirectMUMPS();
+
+  /**
+   * Exception
+   */
+  DeclException0(ExcInitializeAlreadyCalled);
+
+  /**
+   * This function initializes a MUMPS instance and hands over the system's
+   * matrix <tt>matrix</tt> and right-hand side <tt>rhs_vector</tt> to the
+   * solver.
+   */
+  template <class Matrix>
+  void
+  initialize(const Matrix &matrix, const Vector<double> &rhs_vector, const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * This function initializes a MUMPS instance and computes the factorization
+   * of the system's matrix <tt>matrix</tt>.
+   */
+  template <class Matrix>
+  void
+  initialize(const Matrix &matrix, const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * A function in which the linear system is solved and the solution vector
+   * is copied into the given <tt>vector</tt>. The right-hand side need to be
+   * supplied in initialize(matrix, vector);
+   */
+  void
+  solve(Vector<double> &vector);
+
+  /**
+   * A function in which the inverse of the matrix is applied to the input
+   * vector <tt>src</tt> and the solution is written into the output vector
+   * <tt>dst</tt>.
+   */
+  void
+  vmult(Vector<double> &dst, const Vector<double> &src);
+
+  private:
 #ifdef DEAL_II_WITH_MUMPS
   DMUMPS_STRUC_C id;
 #endif // DEAL_II_WITH_MUMPS
@@ -490,59 +549,7 @@ private:
    */
   bool initialize_called;
 
-public:
-  /**
-   * Declare type for container size.
-   */
-  using size_type = types::global_dof_index;
-
-  /**
-   * Constructor
-   */
-  SparseDirectMUMPS();
-
-  /**
-   * Destructor
-   */
-  ~SparseDirectMUMPS();
-
-  /**
-   * Exception
-   */
-  DeclException0(ExcInitializeAlreadyCalled);
-
-  /**
-   * This function initializes a MUMPS instance and hands over the system's
-   * matrix <tt>matrix</tt> and right-hand side <tt>rhs_vector</tt> to the
-   * solver.
-   */
-  template <class Matrix>
-  void
-  initialize(const Matrix &matrix, const Vector<double> &rhs_vector);
-
-  /**
-   * This function initializes a MUMPS instance and computes the factorization
-   * of the system's matrix <tt>matrix</tt>.
-   */
-  template <class Matrix>
-  void
-  initialize(const Matrix &matrix);
-
-  /**
-   * A function in which the linear system is solved and the solution vector
-   * is copied into the given <tt>vector</tt>. The right-hand side need to be
-   * supplied in initialize(matrix, vector);
-   */
-  void
-  solve(Vector<double> &vector);
-
-  /**
-   * A function in which the inverse of the matrix is applied to the input
-   * vector <tt>src</tt> and the solution is written into the output vector
-   * <tt>dst</tt>.
-   */
-  void
-  vmult(Vector<double> &dst, const Vector<double> &src);
+  AdditionalData additional_data;
 };
 
 DEAL_II_NAMESPACE_CLOSE

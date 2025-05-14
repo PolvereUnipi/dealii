@@ -861,9 +861,11 @@ SparseDirectUMFPACK::n() const
 
 #ifdef DEAL_II_WITH_MUMPS
 
-SparseDirectMUMPS::SparseDirectMUMPS()
+SparseDirectMUMPS::SparseDirectMUMPS(const AdditionalData &data)
   : initialize_called(false)
-{}
+{
+  this->additional_data = data;
+}
 
 SparseDirectMUMPS::~SparseDirectMUMPS()
 {
@@ -943,11 +945,6 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       id.a   = a;
     }
 
-  // No outputs
-  id.icntl[0] = -1;
-  id.icntl[1] = -1;
-  id.icntl[2] = -1;
-  id.icntl[3] = 0;
 
   // Exit by setting this flag:
   initialize_called = true;
@@ -956,10 +953,11 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
 template <class Matrix>
 void
 SparseDirectMUMPS::initialize(const Matrix         &matrix,
-                              const Vector<double> &vector)
+                              const Vector<double> &vector,
+                              const AdditionalData &data)
 {
   // Hand over matrix and right-hand side
-  initialize_matrix(matrix);
+  initialize(matrix, data);
 
   copy_rhs_to_mumps(vector);
 }
@@ -1000,10 +998,23 @@ SparseDirectMUMPS::copy_solution(Vector<double> &vector)
 
 template <class Matrix>
 void
-SparseDirectMUMPS::initialize(const Matrix &matrix)
+SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
 {
   // Initialize MUMPS instance:
   initialize_matrix(matrix);
+
+  this->additional_data = data;
+
+  if (additional_data.output_details == false)
+    {
+      // No outputs
+      id.icntl[0] = -1;
+      id.icntl[1] = -1;
+      id.icntl[2] = -1;
+      id.icntl[3] = 0;
+    }
+
+
   // Start factorization
   id.job = 4;
   dmumps_c(&id);
@@ -1089,8 +1100,10 @@ InstantiateUMFPACK(BlockSparseMatrix<std::complex<float>>);
 #ifdef DEAL_II_WITH_MUMPS
 #  define InstantiateMUMPS(MATRIX)                                       \
     template void SparseDirectMUMPS::initialize(const MATRIX &,          \
-                                                const Vector<double> &); \
-    template void SparseDirectMUMPS::initialize(const MATRIX &);
+                                                const Vector<double> &,  \
+                                                const AdditionalData &); \
+    template void SparseDirectMUMPS::initialize(const MATRIX &,          \
+                                                const AdditionalData &);
 
 InstantiateMUMPS(SparseMatrix<double>) InstantiateMUMPS(SparseMatrix<float>)
   // InstantiateMUMPS(SparseMatrixEZ<double>)
