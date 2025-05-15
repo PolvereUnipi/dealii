@@ -460,9 +460,12 @@ public:
   struct AdditionalData
   {
     AdditionalData() = default;
-    bool output_details;
-    bool transpose;
-    bool error_statistics;
+    bool   output_details;
+    bool   transpose;
+    bool   error_statistics;
+    bool   blr_factorization;
+    bool   blr_ucfs;
+    double lowrank_threshold;
   };
   /**
    * Constructor

@@ -1019,6 +1019,15 @@ SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
   if (additional_data.error_statistics == true)
     id.icntl[10] = 2;
 
+  if (additional_data.blr_factorization == true)
+    {
+      id.icntl[34] = 2;
+      if (additional_data.blr_ucfs == true)
+        id.icntl[35] = 1;
+      Assert(additional_data.lowrank_threshold > 0,
+             ExcMessage("Lowrank threshold must be positive."));
+      id.cntl[6] = additional_data.lowrank_threshold;
+    }
 
   // Start factorization
   id.job = 4;
