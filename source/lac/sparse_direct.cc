@@ -1044,7 +1044,7 @@ SparseDirectMUMPS::solve(Vector<double> &vector)
          ExcMessage("Destination vector has the wrong size."));
 
   Assert(this->rhs.size() != 0,
-         ExcMessage("MUMPS was not given a rhs vector."));
+         ExcMessage("Class not initialized with a rhs vector."));
 
   // Start solver
   // This one does again symbolic factorization and numerical factorization
