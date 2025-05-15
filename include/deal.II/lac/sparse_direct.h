@@ -461,12 +461,13 @@ public:
   {
     AdditionalData() = default;
     bool output_details;
-    
+    bool transpose;
+    bool error_statistics;
   };
   /**
    * Constructor
    */
-  SparseDirectMUMPS(const AdditionalData &additional_data = AdditionalData());
+  SparseDirectMUMPS();
 
   /**
    * Destructor
@@ -485,7 +486,9 @@ public:
    */
   template <class Matrix>
   void
-  initialize(const Matrix &matrix, const Vector<double> &rhs_vector, const AdditionalData &additional_data = AdditionalData());
+  initialize(const Matrix         &matrix,
+             const Vector<double> &rhs_vector,
+             const AdditionalData &additional_data = AdditionalData());
 
   /**
    * This function initializes a MUMPS instance and computes the factorization
@@ -493,7 +496,8 @@ public:
    */
   template <class Matrix>
   void
-  initialize(const Matrix &matrix, const AdditionalData &additional_data = AdditionalData());
+  initialize(const Matrix         &matrix,
+             const AdditionalData &additional_data = AdditionalData());
 
   /**
    * A function in which the linear system is solved and the solution vector
@@ -511,7 +515,13 @@ public:
   void
   vmult(Vector<double> &dst, const Vector<double> &src);
 
-  private:
+  /**
+   * A function that returns the ICNTL integer array from mumps.
+   */
+  int *
+  get_icntl();
+
+private:
 #ifdef DEAL_II_WITH_MUMPS
   DMUMPS_STRUC_C id;
 #endif // DEAL_II_WITH_MUMPS
@@ -546,8 +556,9 @@ public:
   /**
    * Flags storing whether the function <tt>initialize ()</tt> has already
    * been called.
+   * I think this is useless now since we initialize in the constructor
    */
-  bool initialize_called;
+  // bool initialize_called;
 
   AdditionalData additional_data;
 };
