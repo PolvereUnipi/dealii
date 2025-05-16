@@ -470,7 +470,6 @@ public:
 
     AdditionalData() = default;
     bool output_details;
-    bool transpose;
     bool error_statistics;
 
     bool         blr_factorization;
@@ -526,6 +525,14 @@ public:
    */
   void
   vmult(Vector<double> &dst, const Vector<double> &src) const;
+
+  /**
+   * A function in which the inverse of the transposed matrix is applied to the
+   * input vector <tt>src</tt> and the solution is written into the output
+   * vector <tt>dst</tt>.
+   */
+  void
+  Tvmult(Vector<double> &dst, const Vector<double> &src) const;
 
   /**
    * A function that returns the ICNTL integer array from MUMPS.

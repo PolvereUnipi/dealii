@@ -15,9 +15,7 @@
 
 
 // test the mumps sparse direct solver on a mass matrix
-// - check several ways to solve
-// test of the transpose option
-// test of other options
+// - check several ways to solve, also using block low rank
 
 #include <deal.II/base/function.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -30,10 +28,13 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/tria.h>
 
+#include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/lac/sparsity_pattern.h>
 #include <deal.II/lac/vector.h>
+#include <deal.II/lac/vector_memory.h>
 
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -42,7 +43,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "../tests.h"
+#include "../tests/tests.h"
 
 
 void
@@ -51,22 +52,24 @@ solve_and_check(const SparseMatrix<double> &M,
                 const Vector<double>       &solution)
 {
   {
+    int                              *icntl = nullptr;
     SparseDirectMUMPS::AdditionalData data;
     SparseDirectMUMPS                 solver;
+    icntl = solver.get_icntl();
+    std::cout << "Elementi di icntl " << icntl[7] << " " << icntl[8] << " "
+              << icntl[9] << std::endl;
     data.output_details = false;
     solver.initialize(M, data);
     Vector<double> dst(rhs.size());
-    solver.Tvmult(dst, rhs);
+    solver.vmult(dst, rhs);
     dst -= solution;
     Assert(dst.l2_norm() < 1e-9, ExcInternalError());
   }
   {
-    SparseDirectMUMPS::AdditionalData data;
-    SparseDirectMUMPS                 solver;
-    data.output_details = false;
-    solver.initialize(M, rhs, data);
+    SparseDirectMUMPS solver;
+    solver.initialize(M, rhs);
     Vector<double> dst(rhs.size());
-    solver.solve(dst, true);
+    solver.solve(dst);
     dst -= solution;
     Assert(dst.l2_norm() < 1e-9, ExcInternalError());
   }
@@ -112,8 +115,13 @@ test()
   // compute a decomposition of the matrix
   SparseDirectMUMPS                 Binv;
   SparseDirectMUMPS::AdditionalData data;
-  data.output_details   = true;
-  data.error_statistics = true;
+
+  data.blr_factorization = true;
+  SparseDirectMUMPS::AdditionalData::BlockLowRank blr;
+  blr.blr_ucfs          = false;
+  blr.lowrank_threshold = 1e-8;
+  data.output_details   = false;
+  data.error_statistics = false;
   Binv.initialize(B, data);
 
   // for a number of different solution
@@ -128,9 +136,16 @@ test()
       for (unsigned int j = 0; j < dof_handler.n_dofs(); ++j)
         solution(j) = j + j * (i + 1) * (i + 1);
 
-      B.Tvmult(b, solution);
+      B.vmult(b, solution);
 
-      Binv.Tvmult(x, b);
+      SolverControl            solver_control(1000, 1e-8);
+      SolverCG<Vector<double>> solver(solver_control);
+
+
+      solver.solve(B, x, b, Binv);
+
+      deallog << "Number of preconditioned CG iterations = "
+              << solver_control.last_step() << std::endl;
 
       x -= solution;
       deallog << "relative norm distance = " << x.l2_norm() / solution.l2_norm()
@@ -138,10 +153,6 @@ test()
       deallog << "absolute norms = " << x.l2_norm() << ' ' << solution.l2_norm()
               << std::endl;
       Assert(x.l2_norm() / solution.l2_norm() < 1e-8, ExcInternalError());
-
-
-      // also check solving in different ways:
-      solve_and_check(B, b, solution);
     }
 }
 

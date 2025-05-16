@@ -1013,8 +1013,6 @@ SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
       id.icntl[3] = 0;
     }
 
-
-
   if (additional_data.error_statistics == true)
     id.icntl[10] = 2;
 
@@ -1063,6 +1061,7 @@ SparseDirectMUMPS::solve(Vector<double> &vector, const bool transpose /*false*/)
   id.job = 3; // 6 = analysis, factorization, and solve, 3 = solve
   dmumps_c(&id);
   copy_solution(vector);
+  id.icntl[8] = 1; // reset to default
 }
 
 void
@@ -1086,6 +1085,31 @@ SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src) const
   id.job = 3;
   dmumps_c(&id);
   copy_solution(dst);
+}
+
+void
+SparseDirectMUMPS::Tvmult(Vector<double> &dst, const Vector<double> &src) const
+{
+  // Check that the solver has been initialized by the routine above:
+  // This again is not needed anymore since the constructor guarantees the
+  // initialization
+  // Assert(initialize_called == true, ExcNotInitialized());
+
+  // and that the matrix has at least one nonzero element:
+  Assert(nz != 0, ExcNotInitialized());
+
+  Assert(n == dst.size(), ExcMessage("Destination vector has the wrong size."));
+  Assert(n == src.size(), ExcMessage("Source vector has the wrong size."));
+
+  id.icntl[8] = 2; // transpose
+  // Hand over right-hand side
+  copy_rhs_to_mumps(src);
+
+  // Start solver
+  id.job = 3;
+  dmumps_c(&id);
+  copy_solution(dst);
+  id.icntl[8] = 1; // reset to default
 }
 
 int *
