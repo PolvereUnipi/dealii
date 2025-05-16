@@ -1013,8 +1013,7 @@ SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
       id.icntl[3] = 0;
     }
 
-  if (additional_data.transpose == true)
-    id.icntl[8] = 2;
+
 
   if (additional_data.error_statistics == true)
     id.icntl[10] = 2;
@@ -1035,7 +1034,7 @@ SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
 }
 
 void
-SparseDirectMUMPS::solve(Vector<double> &vector)
+SparseDirectMUMPS::solve(Vector<double> &vector, const bool transpose /*false*/)
 {
   // TODO: this could be implemented similar to SparseDirectUMFPACK where
   //  the given vector will be used as the RHS. Sadly, there is no easy
@@ -1058,6 +1057,9 @@ SparseDirectMUMPS::solve(Vector<double> &vector)
   // Start solver
   // This one does again symbolic factorization and numerical factorization
   // These are done in the initialize functions
+  if (transpose)
+    id.icntl[8] = 2;
+
   id.job = 3; // 6 = analysis, factorization, and solve, 3 = solve
   dmumps_c(&id);
   copy_solution(vector);

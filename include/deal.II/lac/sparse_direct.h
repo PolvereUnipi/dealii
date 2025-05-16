@@ -470,7 +470,6 @@ public:
 
     AdditionalData() = default;
     bool output_details;
-    bool transpose;
     bool error_statistics;
 
     bool         blr_factorization;
@@ -517,7 +516,7 @@ public:
    * supplied in initialize(matrix, vector);
    */
   void
-  solve(Vector<double> &vector);
+  solve(Vector<double> &vector, const bool transpose = false);
 
   /**
    * A function in which the inverse of the matrix is applied to the input
