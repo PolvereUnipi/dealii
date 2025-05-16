@@ -114,7 +114,6 @@ test()
   // compute a decomposition of the matrix
   SparseDirectMUMPS                 Binv;
   SparseDirectMUMPS::AdditionalData data;
-  data.transpose        = true;
   data.output_details   = true;
   data.error_statistics = true;
   Binv.initialize(B, data);
