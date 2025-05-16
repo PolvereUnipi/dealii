@@ -962,7 +962,7 @@ SparseDirectMUMPS::initialize(const Matrix         &matrix,
 }
 
 void
-SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs)
+SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs) const
 {
   Assert(n == new_rhs.size(),
          ExcMessage("Matrix size and rhs length must be equal."));
@@ -978,7 +978,7 @@ SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs)
 }
 
 void
-SparseDirectMUMPS::copy_solution(Vector<double> &vector)
+SparseDirectMUMPS::copy_solution(Vector<double> &vector) const
 {
   Assert(n == vector.size(),
          ExcMessage("Matrix size and solution vector length must be equal."));
@@ -1022,11 +1022,11 @@ SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
   if (additional_data.blr_factorization == true)
     {
       id.icntl[34] = 2;
-      if (additional_data.blr_ucfs == true)
+      if (additional_data.blr.blr_ucfs == true)
         id.icntl[35] = 1;
-      Assert(additional_data.lowrank_threshold > 0,
+      Assert(additional_data.blr.lowrank_threshold > 0,
              ExcMessage("Lowrank threshold must be positive."));
-      id.cntl[6] = additional_data.lowrank_threshold;
+      id.cntl[6] = additional_data.blr.lowrank_threshold;
     }
 
   // Start factorization
@@ -1064,7 +1064,7 @@ SparseDirectMUMPS::solve(Vector<double> &vector)
 }
 
 void
-SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src)
+SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src) const
 {
   // Check that the solver has been initialized by the routine above:
   // This again is not needed anymore since the constructor guarantees the

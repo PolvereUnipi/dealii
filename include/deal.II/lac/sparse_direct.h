@@ -459,13 +459,22 @@ public:
   using size_type = types::global_dof_index;
   struct AdditionalData
   {
+    /**
+     * Struct that holds additional data for the low-rank approximation.
+     */
+    struct BlockLowRank
+    {
+      bool   blr_ucfs          = false;
+      double lowrank_threshold = 1e-8;
+    };
+
     AdditionalData() = default;
-    bool   output_details;
-    bool   transpose;
-    bool   error_statistics;
-    bool   blr_factorization;
-    bool   blr_ucfs;
-    double lowrank_threshold;
+    bool output_details;
+    bool transpose;
+    bool error_statistics;
+
+    bool         blr_factorization;
+    BlockLowRank blr;
   };
   /**
    * Constructor
@@ -516,25 +525,25 @@ public:
    * <tt>dst</tt>.
    */
   void
-  vmult(Vector<double> &dst, const Vector<double> &src);
+  vmult(Vector<double> &dst, const Vector<double> &src) const;
 
   /**
-   * A function that returns the ICNTL integer array from mumps.
+   * A function that returns the ICNTL integer array from MUMPS.
    */
   int *
   get_icntl();
 
 private:
 #ifdef DEAL_II_WITH_MUMPS
-  DMUMPS_STRUC_C id;
+  mutable DMUMPS_STRUC_C id;
 #endif // DEAL_II_WITH_MUMPS
 
-  double                 *a;
-  std::vector<double>     rhs;
-  int                    *irn;
-  int                    *jcn;
-  types::global_dof_index n;
-  types::global_dof_index nz;
+  double                     *a;
+  mutable std::vector<double> rhs;
+  int                        *irn;
+  int                        *jcn;
+  types::global_dof_index     n;
+  types::global_dof_index     nz;
 
   /**
    * This function initializes a MUMPS instance and hands over the system's
@@ -548,13 +557,13 @@ private:
    * Copy the computed solution into the solution vector.
    */
   void
-  copy_solution(Vector<double> &vector);
+  copy_solution(Vector<double> &vector) const;
 
   /**
    *
    */
   void
-  copy_rhs_to_mumps(const Vector<double> &rhs);
+  copy_rhs_to_mumps(const Vector<double> &rhs) const;
 
   /**
    * Flags storing whether the function <tt>initialize ()</tt> has already
