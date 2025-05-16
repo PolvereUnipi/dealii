@@ -470,6 +470,7 @@ public:
 
     AdditionalData() = default;
     bool output_details;
+    bool transpose;
     bool error_statistics;
 
     bool         blr_factorization;
