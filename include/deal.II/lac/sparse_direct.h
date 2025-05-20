@@ -459,28 +459,13 @@ public:
   using size_type = types::global_dof_index;
 
   /**
-   * The AdditionalData contains data for controlling the MUMPS execution. Its
-   * members are:
-   * - output_details: if true, the MUMPS solver will print out details of the
-   * execution
-   * - error_statistics: if true, the MUMPS solver will print out error
-   * statistics
-   * - symmetric: if true, the MUMPS solver will use the symmetric
-   * factorization. This is only possible if the matrix is symmetric.
-   * - posdef: if true, the MUMPS solver will use the positive definite
-   * factorization. This is only possible if the matrix is symmetric and
-   * positive definite.
-   * - blr_factorization: if true, the MUMPS solver will use the Block Low-Rank
-   * factorization
-   * - blr: if blr_factorization is true, this struct contains the
-   * parameters for the Block Low-Rank factorization. The parameters are:
-   *   - blr_ucfs: if true the Block Low-Rank approximation is used
-   * with the UCFS algorithm, an algorithm with higher compression than the
-   * standard one.
-   *   - lowrank_threshold: threshold for the low-rank truncation of the blocks.
+   * The AdditionalData contains data for controlling the MUMPS execution.
    */
   struct AdditionalData
   {
+    /**
+     * Struct that contains the data for the Block Low-Rank approximation.
+     */
     struct BlockLowRank
     {
       BlockLowRank(const bool   blr_ucfs          = false,
@@ -488,7 +473,14 @@ public:
         : blr_ucfs(blr_ucfs)
         , lowrank_threshold(lowrank_threshold)
       {}
-      bool   blr_ucfs;
+      /**
+       * If true, the Block Low-Rank approximation is used with the UCFS
+       * algorithm, an algorithm with higher compression than the standard one.
+       */
+      bool blr_ucfs;
+      /**
+       * Threshold for the low-rank truncation of the blocks.
+       */
       double lowrank_threshold;
     };
 
@@ -505,12 +497,28 @@ public:
       , blr_factorization(blr_factorization)
       , blr(blr)
     {}
-
+    /*
+     * If true, the MUMPS solver will print out details of the execution
+     */
     bool output_details;
+    /*
+     * If true, the MUMPS solver will print out error statistics
+     */
     bool error_statistics;
+    /*
+     * If true, the MUMPS solver will use the symmetric factorization. This is
+     * only possible if the matrix is symmetric.
+     */
     bool symmetric;
+    /*
+     * If true, the MUMPS solver will use the positive definite factorization.
+     * This is only possible if the matrix is symmetric and positive definite.
+     */
     bool posdef;
 
+    /*
+     * If true, the MUMPS solver will use the Block Low-Rank factorization
+     */
     bool         blr_factorization;
     BlockLowRank blr;
   };
@@ -557,10 +565,13 @@ public:
   /**
    * A function that returns the ICNTL integer array from MUMPS.
    * The ICNTL array contains integer control parameters for the MUMPS solver.
-   * ICNTL array is originally a fortran array, it's 1-based.
-   * To select the correct index use a macro like this: #define ICNTL(I)
-   * icntl[(I)-1] In the MUMPS documentation there is the description of each
-   * parameter of the array.
+   * Keep in mind that MUMPS is a fortran library and the documentation refers
+   * to indices into this array into this array starting from one rather than
+   * from zero. To select the correct index one can use a macro like this:
+   * #define ICNTL(I) icntl[(I)-1]. In the MUMPS documentation there is the
+   * description of each parameter of the array. Be aware that ownership of the
+   * array remains in the current class rather than with the caller of this
+   * function.
    */
   int *
   get_icntl();
@@ -570,12 +581,31 @@ private:
   mutable DMUMPS_STRUC_C id;
 #endif // DEAL_II_WITH_MUMPS
 
-  double                     *a;
+  /**
+   * a contains the actual values of the matrix. a[k] is the value of the matrix
+   * entry (i,j) if irn[k] == i and jcn[k] == j.
+   */
+  double *a;
+  /**
+   * The right-hand side vector. This is the right hand side of the system
+   */
   mutable std::vector<double> rhs;
-  int                        *irn;
-  int                        *jcn;
-  types::global_dof_index     n;
-  types::global_dof_index     nz;
+  /**
+   * irn contains the row indices of the non-zero entries of the matrix.
+   */
+  int *irn;
+  /**
+   * jcn contains the column indices of the non-zero entries of the matrix.
+   */
+  int *jcn;
+  /**
+   * The number of rows of the matrix. The matrix is square.
+   */
+  types::global_dof_index n;
+  /**
+   * The number of non-zero entries in the matrix.
+   */
+  types::global_dof_index nz;
 
   /**
    * This function initializes a MUMPS instance and hands over the system's
