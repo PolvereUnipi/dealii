@@ -452,50 +452,45 @@ private:
  */
 class SparseDirectMUMPS : public EnableObserverPointer
 {
-private:
-#ifdef DEAL_II_WITH_MUMPS
-  DMUMPS_STRUC_C id;
-#endif // DEAL_II_WITH_MUMPS
-
-  double                 *a;
-  std::vector<double>     rhs;
-  int                    *irn;
-  int                    *jcn;
-  types::global_dof_index n;
-  types::global_dof_index nz;
-
-  /**
-   * This function initializes a MUMPS instance and hands over the system's
-   * matrix <tt>matrix</tt>.
-   */
-  template <class Matrix>
-  void
-  initialize_matrix(const Matrix &matrix);
-
-  /**
-   * Copy the computed solution into the solution vector.
-   */
-  void
-  copy_solution(Vector<double> &vector);
-
-  /**
-   *
-   */
-  void
-  copy_rhs_to_mumps(const Vector<double> &rhs);
-
-  /**
-   * Flags storing whether the function <tt>initialize ()</tt> has already
-   * been called.
-   */
-  bool initialize_called;
-
 public:
   /**
    * Declare type for container size.
    */
   using size_type = types::global_dof_index;
+  struct AdditionalData
+  {
+    /**
+     * Struct that holds additional data for the low-rank approximation.
+     */
+    struct BlockLowRank
+    {
+      BlockLowRank() = default;
+      BlockLowRank(const bool blr_ucfs, const double lowrank_threshold)
+        : blr_ucfs(blr_ucfs)
+        , lowrank_threshold(lowrank_threshold)
+      {}
+      bool   blr_ucfs          = false;
+      double lowrank_threshold = 1e-8;
+    };
 
+    AdditionalData() = default;
+
+    AdditionalData(const bool          output_details,
+                   const bool          error_statistics,
+                   const bool          blr_factorization = false,
+                   const BlockLowRank &blr               = BlockLowRank())
+      : output_details(output_details)
+      , error_statistics(error_statistics)
+      , blr_factorization(blr_factorization)
+      , blr(blr)
+    {}
+
+    bool output_details;
+    bool error_statistics;
+
+    bool         blr_factorization;
+    BlockLowRank blr;
+  };
   /**
    * Constructor
    */
@@ -518,7 +513,9 @@ public:
    */
   template <class Matrix>
   void
-  initialize(const Matrix &matrix, const Vector<double> &rhs_vector);
+  initialize(const Matrix         &matrix,
+             const Vector<double> &rhs_vector,
+             const AdditionalData &additional_data = AdditionalData());
 
   /**
    * This function initializes a MUMPS instance and computes the factorization
@@ -526,7 +523,8 @@ public:
    */
   template <class Matrix>
   void
-  initialize(const Matrix &matrix);
+  initialize(const Matrix         &matrix,
+             const AdditionalData &additional_data = AdditionalData());
 
   /**
    * A function in which the linear system is solved and the solution vector
@@ -534,7 +532,7 @@ public:
    * supplied in initialize(matrix, vector);
    */
   void
-  solve(Vector<double> &vector);
+  solve(Vector<double> &vector, const bool transpose = false);
 
   /**
    * A function in which the inverse of the matrix is applied to the input
@@ -542,7 +540,58 @@ public:
    * <tt>dst</tt>.
    */
   void
-  vmult(Vector<double> &dst, const Vector<double> &src);
+  vmult(Vector<double> &dst, const Vector<double> &src) const;
+
+  /**
+   * A function in which the inverse of the transposed matrix is applied to the
+   * input vector <tt>src</tt> and the solution is written into the output
+   * vector <tt>dst</tt>.
+   */
+  void
+  Tvmult(Vector<double> &dst, const Vector<double> &src) const;
+
+  /**
+   * A function that returns the ICNTL integer array from MUMPS. FIX, add macros
+   */
+  int *
+  get_icntl();
+
+private:
+#ifdef DEAL_II_WITH_MUMPS
+  mutable DMUMPS_STRUC_C id;
+#endif // DEAL_II_WITH_MUMPS
+
+  double                     *a;
+  mutable std::vector<double> rhs;
+  int                        *irn;
+  int                        *jcn;
+  types::global_dof_index     n;
+  types::global_dof_index     nz;
+
+  /**
+   * This function initializes a MUMPS instance and hands over the system's
+   * matrix <tt>matrix</tt>.
+   */
+  template <class Matrix>
+  void
+  initialize_matrix(const Matrix &matrix);
+
+  /**
+   * Copy the computed solution into the solution vector.
+   */
+  void
+  copy_solution(Vector<double> &vector) const;
+
+  /**
+   *
+   */
+  void
+  copy_rhs_to_mumps(const Vector<double> &rhs) const;
+
+  /**
+   * Da inserire
+   */
+  AdditionalData additional_data;
 };
 
 DEAL_II_NAMESPACE_CLOSE

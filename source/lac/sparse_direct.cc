@@ -862,8 +862,20 @@ SparseDirectUMFPACK::n() const
 #ifdef DEAL_II_WITH_MUMPS
 
 SparseDirectMUMPS::SparseDirectMUMPS()
-  : initialize_called(false)
-{}
+{
+  // Initialize MUMPS instance:
+  // It's initialized with non-symmetric matrix and with the HOST process
+  // partecipating I.E: id.par = 1 and id.sym = 0
+  id.job = -1;
+  id.par = 1;
+  id.sym = 0;
+
+  // Use MPI_COMM_WORLD as communicator
+  id.comm_fortran = -987654;
+  dmumps_c(&id);
+  // Exit by setting this flag: this one might actually be useless now
+  // initialize_called = true;
+}
 
 SparseDirectMUMPS::~SparseDirectMUMPS()
 {
@@ -884,19 +896,12 @@ void
 SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
 {
   Assert(matrix.n() == matrix.m(), ExcMessage("Matrix needs to be square."));
+  // Here we should be checking if the matrix is respecting the symmetry given
+  //(I.E. sym = 0 for non-symmetric matrix, sym = 1 for posdef matrix, sym = 2
+  // for general symmetric).
 
-
-  // Check we haven't been here before:
-  Assert(initialize_called == false, ExcInitializeAlreadyCalled());
-
-  // Initialize MUMPS instance:
-  id.job = -1;
-  id.par = 1;
-  id.sym = 0;
-
-  // Use MPI_COMM_WORLD as communicator
-  id.comm_fortran = -987654;
-  dmumps_c(&id);
+  // Check we haven't been here before: this one is not needed anymore
+  // Assert(initialize_called == true, ExcInitializeAlreadyCalled());
 
   // Hand over matrix and right-hand side
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -942,30 +947,22 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       id.jcn = jcn;
       id.a   = a;
     }
-
-  // No outputs
-  id.icntl[0] = -1;
-  id.icntl[1] = -1;
-  id.icntl[2] = -1;
-  id.icntl[3] = 0;
-
-  // Exit by setting this flag:
-  initialize_called = true;
 }
 
 template <class Matrix>
 void
 SparseDirectMUMPS::initialize(const Matrix         &matrix,
-                              const Vector<double> &vector)
+                              const Vector<double> &vector,
+                              const AdditionalData &data)
 {
   // Hand over matrix and right-hand side
-  initialize_matrix(matrix);
+  initialize(matrix, data);
 
   copy_rhs_to_mumps(vector);
 }
 
 void
-SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs)
+SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs) const
 {
   Assert(n == new_rhs.size(),
          ExcMessage("Matrix size and rhs length must be equal."));
@@ -981,7 +978,7 @@ SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs)
 }
 
 void
-SparseDirectMUMPS::copy_solution(Vector<double> &vector)
+SparseDirectMUMPS::copy_solution(Vector<double> &vector) const
 {
   Assert(n == vector.size(),
          ExcMessage("Matrix size and solution vector length must be equal."));
@@ -1000,39 +997,80 @@ SparseDirectMUMPS::copy_solution(Vector<double> &vector)
 
 template <class Matrix>
 void
-SparseDirectMUMPS::initialize(const Matrix &matrix)
+SparseDirectMUMPS::initialize(const Matrix &matrix, const AdditionalData &data)
 {
   // Initialize MUMPS instance:
   initialize_matrix(matrix);
+
+  this->additional_data = data;
+
+  if (additional_data.output_details == false)
+    {
+      // No outputs
+      id.icntl[0] = -1;
+      id.icntl[1] = -1;
+      id.icntl[2] = -1;
+      id.icntl[3] = 0;
+    }
+
+  if (additional_data.error_statistics == true)
+    id.icntl[10] = 2;
+
+  if (additional_data.blr_factorization == true)
+    {
+      id.icntl[34] = 2;
+      if (additional_data.blr.blr_ucfs == true)
+        id.icntl[35] = 1;
+      Assert(additional_data.blr.lowrank_threshold > 0,
+             ExcMessage("Lowrank threshold must be positive."));
+      id.cntl[6] = additional_data.blr.lowrank_threshold;
+    }
+
   // Start factorization
   id.job = 4;
   dmumps_c(&id);
 }
 
 void
-SparseDirectMUMPS::solve(Vector<double> &vector)
+SparseDirectMUMPS::solve(Vector<double> &vector, const bool transpose /*false*/)
 {
   // TODO: this could be implemented similar to SparseDirectUMFPACK where
   //  the given vector will be used as the RHS. Sadly, there is no easy
   //  way to do this without breaking the interface.
 
   // Check that the solver has been initialized by the routine above:
-  Assert(initialize_called == true, ExcNotInitialized());
+  // This is not needed anymore since the constructor guarantees the
+  // initialization
+  // Assert(initialize_called == true, ExcNotInitialized());
 
   // and that the matrix has at least one nonzero element:
   Assert(nz != 0, ExcNotInitialized());
 
+  Assert(n == vector.size(),
+         ExcMessage("Destination vector has the wrong size."));
+
+  Assert(this->rhs.size() != 0,
+         ExcMessage("Class not initialized with a rhs vector."));
+
   // Start solver
-  id.job = 6; // 6 = analysis, factorization, and solve
+  // This one does again symbolic factorization and numerical factorization
+  // These are done in the initialize functions
+  if (transpose)
+    id.icntl[8] = 2;
+
+  id.job = 3; // 6 = analysis, factorization, and solve, 3 = solve
   dmumps_c(&id);
   copy_solution(vector);
+  id.icntl[8] = 1; // reset to default
 }
 
 void
-SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src)
+SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src) const
 {
   // Check that the solver has been initialized by the routine above:
-  Assert(initialize_called == true, ExcNotInitialized());
+  // This again is not needed anymore since the constructor guarantees the
+  // initialization
+  // Assert(initialize_called == true, ExcNotInitialized());
 
   // and that the matrix has at least one nonzero element:
   Assert(nz != 0, ExcNotInitialized());
@@ -1047,6 +1085,37 @@ SparseDirectMUMPS::vmult(Vector<double> &dst, const Vector<double> &src)
   id.job = 3;
   dmumps_c(&id);
   copy_solution(dst);
+}
+
+void
+SparseDirectMUMPS::Tvmult(Vector<double> &dst, const Vector<double> &src) const
+{
+  // Check that the solver has been initialized by the routine above:
+  // This again is not needed anymore since the constructor guarantees the
+  // initialization
+  // Assert(initialize_called == true, ExcNotInitialized());
+
+  // and that the matrix has at least one nonzero element:
+  Assert(nz != 0, ExcNotInitialized());
+
+  Assert(n == dst.size(), ExcMessage("Destination vector has the wrong size."));
+  Assert(n == src.size(), ExcMessage("Source vector has the wrong size."));
+
+  id.icntl[8] = 2; // transpose
+  // Hand over right-hand side
+  copy_rhs_to_mumps(src);
+
+  // Start solver
+  id.job = 3;
+  dmumps_c(&id);
+  copy_solution(dst);
+  id.icntl[8] = 1; // reset to default
+}
+
+int *
+SparseDirectMUMPS::get_icntl()
+{
+  return id.icntl;
 }
 
 #endif // DEAL_II_WITH_MUMPS
@@ -1089,8 +1158,10 @@ InstantiateUMFPACK(BlockSparseMatrix<std::complex<float>>);
 #ifdef DEAL_II_WITH_MUMPS
 #  define InstantiateMUMPS(MATRIX)                                       \
     template void SparseDirectMUMPS::initialize(const MATRIX &,          \
-                                                const Vector<double> &); \
-    template void SparseDirectMUMPS::initialize(const MATRIX &);
+                                                const Vector<double> &,  \
+                                                const AdditionalData &); \
+    template void SparseDirectMUMPS::initialize(const MATRIX &,          \
+                                                const AdditionalData &);
 
 InstantiateMUMPS(SparseMatrix<double>) InstantiateMUMPS(SparseMatrix<float>)
   // InstantiateMUMPS(SparseMatrixEZ<double>)
