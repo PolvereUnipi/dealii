@@ -455,6 +455,10 @@ class SparseDirectMUMPS : public EnableObserverPointer
 public:
   /**
    * Declare type for container size.
+   */
+  using size_type = types::global_dof_index;
+
+  /**
    * The AdditionalData contains data for controlling the MUMPS execution. Its
    * members are:
    * - output_details: if true, the MUMPS solver will print out details of the
@@ -474,7 +478,6 @@ public:
    * standard one.
    *   - lowrank_threshold: threshold for the low-rank truncation of the blocks.
    */
-  using size_type = types::global_dof_index;
   struct AdditionalData
   {
     struct BlockLowRank
