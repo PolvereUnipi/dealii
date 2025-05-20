@@ -455,46 +455,65 @@ class SparseDirectMUMPS : public EnableObserverPointer
 public:
   /**
    * Declare type for container size.
+   * The AdditionalData contains data for controlling the MUMPS execution. Its
+   * members are:
+   * - output_details: if true, the MUMPS solver will print out details of the
+   * execution
+   * - error_statistics: if true, the MUMPS solver will print out error
+   * statistics
+   * - general_symmetric: if true, the MUMPS solver will use the general
+   * symmetric factorization
+   * - positive_definite: if true, the MUMPS solver will use the
+   * positive-definite factorization
+   * - blr_factorization: if true, the MUMPS solver will use the Block Low-Rank
+   * factorization
+   * - blr: if blr_factorization is true, this struct contains the
+   * parameters for the Block Low-Rank factorization. The parameters are:
+   *   - blr_ucfs: if true the Block Low-Rank approximation is used
+   * with the UCFS algorithm, an algorithm with higher compression than the
+   * standard one.
+   *   - lowrank_threshold: threshold for the low-rank truncation of the blocks.
    */
   using size_type = types::global_dof_index;
   struct AdditionalData
   {
-    /**
-     * Struct that holds additional data for the low-rank approximation.
-     */
     struct BlockLowRank
     {
-      BlockLowRank() = default;
-      BlockLowRank(const bool blr_ucfs, const double lowrank_threshold)
+      BlockLowRank(const bool   blr_ucfs          = false,
+                   const double lowrank_threshold = 1e-8)
         : blr_ucfs(blr_ucfs)
         , lowrank_threshold(lowrank_threshold)
       {}
-      bool   blr_ucfs          = false;
-      double lowrank_threshold = 1e-8;
+      bool   blr_ucfs;
+      double lowrank_threshold;
     };
 
-    AdditionalData() = default;
-
-    AdditionalData(const bool          output_details,
-                   const bool          error_statistics,
+    AdditionalData(const bool          output_details    = false,
+                   const bool          error_statistics  = false,
+                   const bool          positive_definite = false,
+                   const bool          general_symmetric = false,
                    const bool          blr_factorization = false,
                    const BlockLowRank &blr               = BlockLowRank())
       : output_details(output_details)
       , error_statistics(error_statistics)
+      , positive_definite(positive_definite)
+      , general_symmetric(general_symmetric)
       , blr_factorization(blr_factorization)
       , blr(blr)
     {}
 
     bool output_details;
     bool error_statistics;
+    bool positive_definite;
+    bool general_symmetric;
 
     bool         blr_factorization;
     BlockLowRank blr;
   };
   /**
-   * Constructor
+   * Constructor, takes <tt>AdditionalData</tt> to control MUMPS execution.
    */
-  SparseDirectMUMPS();
+  SparseDirectMUMPS(const AdditionalData &additional_data = AdditionalData());
 
   /**
    * Destructor
@@ -507,32 +526,13 @@ public:
   DeclException0(ExcInitializeAlreadyCalled);
 
   /**
-   * This function initializes a MUMPS instance and hands over the system's
-   * matrix <tt>matrix</tt> and right-hand side <tt>rhs_vector</tt> to the
-   * solver.
+   * This function computes the LU factorization
+   * of the system's matrix <tt>matrix</tt> with the options given in the
+   * constructor's <tt>AdditionalData</tt>.
    */
   template <class Matrix>
   void
-  initialize(const Matrix         &matrix,
-             const Vector<double> &rhs_vector,
-             const AdditionalData &additional_data = AdditionalData());
-
-  /**
-   * This function initializes a MUMPS instance and computes the factorization
-   * of the system's matrix <tt>matrix</tt>.
-   */
-  template <class Matrix>
-  void
-  initialize(const Matrix         &matrix,
-             const AdditionalData &additional_data = AdditionalData());
-
-  /**
-   * A function in which the linear system is solved and the solution vector
-   * is copied into the given <tt>vector</tt>. The right-hand side need to be
-   * supplied in initialize(matrix, vector);
-   */
-  void
-  solve(Vector<double> &vector, const bool transpose = false);
+  initialize(const Matrix &matrix);
 
   /**
    * A function in which the inverse of the matrix is applied to the input
@@ -551,7 +551,12 @@ public:
   Tvmult(Vector<double> &dst, const Vector<double> &src) const;
 
   /**
-   * A function that returns the ICNTL integer array from MUMPS. FIX, add macros
+   * A function that returns the ICNTL integer array from MUMPS.
+   * The ICNTL array contains integer control parameters for the MUMPS solver.
+   * ICNTL array is originally a fortran array, it's 1-based.
+   * To select the correct index use a macro like this: #define ICNTL(I)
+   * icntl[(I)-1] In the MUMPS documentation there is the description of each
+   * parameter of the array.
    */
   int *
   get_icntl();
@@ -583,13 +588,13 @@ private:
   copy_solution(Vector<double> &vector) const;
 
   /**
-   *
+   * Copy the right-hand side vector into the MUMPS instance.
    */
   void
   copy_rhs_to_mumps(const Vector<double> &rhs) const;
 
   /**
-   * Da inserire
+   * Struct that holds the additional data for the MUMPS solver.
    */
   AdditionalData additional_data;
 };

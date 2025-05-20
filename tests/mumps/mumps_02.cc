@@ -92,8 +92,8 @@ test()
       B.vmult(b, solution);
 
       SparseDirectMUMPS solver;
-      solver.initialize(B, b);
-      solver.solve(x);
+      solver.initialize(B);
+      solver.vmult(x, b);
 
       x -= solution;
       deallog << "relative norm distance = " << x.l2_norm() / solution.l2_norm()

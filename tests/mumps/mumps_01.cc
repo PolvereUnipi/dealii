@@ -15,7 +15,7 @@
 
 
 // test the mumps sparse direct solver on a mass matrix
-// - check several ways to solve
+// - check ways to solve
 
 #include <deal.II/base/function.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -56,17 +56,7 @@ solve_and_check(const SparseMatrix<double> &M,
     dst -= solution;
     Assert(dst.l2_norm() < 1e-9, ExcInternalError());
   }
-  {
-    SparseDirectMUMPS solver;
-    solver.initialize(M, rhs);
-    Vector<double> dst(rhs.size());
-    solver.solve(dst);
-    dst -= solution;
-    Assert(dst.l2_norm() < 1e-9, ExcInternalError());
-  }
 }
-
-
 
 template <int dim>
 void

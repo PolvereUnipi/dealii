@@ -15,7 +15,7 @@
 
 
 // test the mumps sparse direct solver on a mass matrix
-// - check several ways to solve, also using block low rank
+// - check several ways to solve, also using block low rank preconditioning
 
 #include <deal.II/base/function.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -43,7 +43,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "../tests/tests.h"
+#include "../tests.h"
 
 
 void
@@ -54,22 +54,14 @@ solve_and_check(const SparseMatrix<double> &M,
   {
     int                              *icntl = nullptr;
     SparseDirectMUMPS::AdditionalData data;
-    SparseDirectMUMPS                 solver;
+    data.output_details = false;
+    SparseDirectMUMPS solver(data);
     icntl = solver.get_icntl();
     std::cout << "Elementi di icntl " << icntl[7] << " " << icntl[8] << " "
               << icntl[9] << std::endl;
-    data.output_details = false;
-    solver.initialize(M, data);
+    solver.initialize(M);
     Vector<double> dst(rhs.size());
     solver.vmult(dst, rhs);
-    dst -= solution;
-    Assert(dst.l2_norm() < 1e-9, ExcInternalError());
-  }
-  {
-    SparseDirectMUMPS solver;
-    solver.initialize(M, rhs);
-    Vector<double> dst(rhs.size());
-    solver.solve(dst);
     dst -= solution;
     Assert(dst.l2_norm() < 1e-9, ExcInternalError());
   }
@@ -113,16 +105,16 @@ test()
   MatrixTools::create_mass_matrix(dof_handler, qr, B);
 
   // compute a decomposition of the matrix
-  SparseDirectMUMPS                 Binv;
   SparseDirectMUMPS::AdditionalData data;
-
   data.blr_factorization = true;
   SparseDirectMUMPS::AdditionalData::BlockLowRank blr;
   blr.blr_ucfs          = false;
   blr.lowrank_threshold = 1e-8;
   data.output_details   = false;
   data.error_statistics = false;
-  Binv.initialize(B, data);
+  SparseDirectMUMPS Binv(data);
+
+  Binv.initialize(B);
 
   // for a number of different solution
   // vectors, make up a matching rhs vector
@@ -141,7 +133,6 @@ test()
       SolverControl            solver_control(1000, 1e-8);
       SolverCG<Vector<double>> solver(solver_control);
 
-
       solver.solve(B, x, b, Binv);
 
       deallog << "Number of preconditioned CG iterations = "
@@ -153,6 +144,8 @@ test()
       deallog << "absolute norms = " << x.l2_norm() << ' ' << solution.l2_norm()
               << std::endl;
       Assert(x.l2_norm() / solution.l2_norm() < 1e-8, ExcInternalError());
+
+      solve_and_check(B, b, solution);
     }
 }
 

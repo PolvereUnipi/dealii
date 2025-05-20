@@ -15,7 +15,6 @@
 
 
 // test the mumps sparse direct solver on a mass matrix
-// - check several ways to solve
 // test of the transpose option
 // test of other options
 
@@ -52,27 +51,15 @@ solve_and_check(const SparseMatrix<double> &M,
 {
   {
     SparseDirectMUMPS::AdditionalData data;
-    SparseDirectMUMPS                 solver;
+    SparseDirectMUMPS                 solver(data);
     data.output_details = false;
-    solver.initialize(M, data);
+    solver.initialize(M);
     Vector<double> dst(rhs.size());
     solver.Tvmult(dst, rhs);
     dst -= solution;
     Assert(dst.l2_norm() < 1e-9, ExcInternalError());
   }
-  {
-    SparseDirectMUMPS::AdditionalData data;
-    SparseDirectMUMPS                 solver;
-    data.output_details = false;
-    solver.initialize(M, rhs, data);
-    Vector<double> dst(rhs.size());
-    solver.solve(dst, true);
-    dst -= solution;
-    Assert(dst.l2_norm() < 1e-9, ExcInternalError());
-  }
 }
-
-
 
 template <int dim>
 void
@@ -110,11 +97,12 @@ test()
   MatrixTools::create_mass_matrix(dof_handler, qr, B);
 
   // compute a decomposition of the matrix
-  SparseDirectMUMPS                 Binv;
+
   SparseDirectMUMPS::AdditionalData data;
   data.output_details   = true;
   data.error_statistics = true;
-  Binv.initialize(B, data);
+  SparseDirectMUMPS Binv(data);
+  Binv.initialize(B);
 
   // for a number of different solution
   // vectors, make up a matching rhs vector
