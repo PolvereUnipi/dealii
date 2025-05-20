@@ -465,10 +465,6 @@ public:
    * execution
    * - error_statistics: if true, the MUMPS solver will print out error
    * statistics
-   * - general_symmetric: if true, the MUMPS solver will use the general
-   * symmetric factorization
-   * - positive_definite: if true, the MUMPS solver will use the
-   * positive-definite factorization
    * - blr_factorization: if true, the MUMPS solver will use the Block Low-Rank
    * factorization
    * - blr: if blr_factorization is true, this struct contains the

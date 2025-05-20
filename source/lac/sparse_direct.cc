@@ -956,6 +956,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
 
       id.n   = n;
       id.nz  = nz;
+      id.nnz = nz;
       id.irn = irn;
       id.jcn = jcn;
       id.a   = a;
