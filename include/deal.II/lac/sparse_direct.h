@@ -581,31 +581,12 @@ private:
   mutable DMUMPS_STRUC_C id;
 #endif // DEAL_II_WITH_MUMPS
 
-  /**
-   * a contains the actual values of the matrix. a[k] is the value of the matrix
-   * entry (i,j) if irn[k] == i and jcn[k] == j.
-   */
-  double *a;
-  /**
-   * The right-hand side vector. This is the right hand side of the system
-   */
+  std::unique_ptr<double[]>   a;
   mutable std::vector<double> rhs;
-  /**
-   * irn contains the row indices of the non-zero entries of the matrix.
-   */
-  int *irn;
-  /**
-   * jcn contains the column indices of the non-zero entries of the matrix.
-   */
-  int *jcn;
-  /**
-   * The number of rows of the matrix. The matrix is square.
-   */
-  types::global_dof_index n;
-  /**
-   * The number of non-zero entries in the matrix.
-   */
-  types::global_dof_index nz;
+  std::unique_ptr<int[]>      irn;
+  std::unique_ptr<int[]>      jcn;
+  types::global_dof_index     n;
+  types::global_dof_index     nz;
 
   /**
    * This function initializes a MUMPS instance and hands over the system's
