@@ -465,6 +465,11 @@ public:
    * execution
    * - error_statistics: if true, the MUMPS solver will print out error
    * statistics
+   * - symmetric: if true, the MUMPS solver will use the symmetric
+   * factorization. This is only possible if the matrix is symmetric.
+   * - posdef: if true, the MUMPS solver will use the positive definite
+   * factorization. This is only possible if the matrix is symmetric and
+   * positive definite.
    * - blr_factorization: if true, the MUMPS solver will use the Block Low-Rank
    * factorization
    * - blr: if blr_factorization is true, this struct contains the
@@ -489,16 +494,22 @@ public:
 
     AdditionalData(const bool          output_details    = false,
                    const bool          error_statistics  = false,
+                   const bool          symmetric         = false,
+                   const bool          posdef            = false,
                    const bool          blr_factorization = false,
                    const BlockLowRank &blr               = BlockLowRank())
       : output_details(output_details)
       , error_statistics(error_statistics)
+      , symmetric(symmetric)
+      , posdef(posdef)
       , blr_factorization(blr_factorization)
       , blr(blr)
     {}
 
     bool output_details;
     bool error_statistics;
+    bool symmetric;
+    bool posdef;
 
     bool         blr_factorization;
     BlockLowRank blr;
