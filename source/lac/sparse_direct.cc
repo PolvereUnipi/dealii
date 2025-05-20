@@ -867,18 +867,7 @@ SparseDirectMUMPS::SparseDirectMUMPS(const AdditionalData &data)
   // Initialize MUMPS instance:
   id.job = -1;
   id.par = 1;
-
-  Assert(
-    !(additional_data.positive_definite && additional_data.general_symmetric),
-    ExcMessage(
-      "The matrix cannot be positive definite and general symmetric at the same time."));
-
-  if (additional_data.positive_definite == true)
-    id.sym = 1;
-  else if (additional_data.general_symmetric == true)
-    id.sym = 2;
-  else
-    id.sym = 0;
+  id.sym = 0;
 
   // Use MPI_COMM_WORLD as communicator
   id.comm_fortran = -987654;

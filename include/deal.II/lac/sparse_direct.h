@@ -493,22 +493,16 @@ public:
 
     AdditionalData(const bool          output_details    = false,
                    const bool          error_statistics  = false,
-                   const bool          positive_definite = false,
-                   const bool          general_symmetric = false,
                    const bool          blr_factorization = false,
                    const BlockLowRank &blr               = BlockLowRank())
       : output_details(output_details)
       , error_statistics(error_statistics)
-      , positive_definite(positive_definite)
-      , general_symmetric(general_symmetric)
       , blr_factorization(blr_factorization)
       , blr(blr)
     {}
 
     bool output_details;
     bool error_statistics;
-    bool positive_definite;
-    bool general_symmetric;
 
     bool         blr_factorization;
     BlockLowRank blr;
