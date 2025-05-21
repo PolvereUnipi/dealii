@@ -1,0 +1,51 @@
+DEAL:0::2d
+DEAL:0::Number of dofs = 1889
+DEAL:0::relative norm distance = 3.62252e-16
+DEAL:0::absolute norms = 1.57444e-14 43.4626
+DEAL:0::relative norm distance = 3.62252e-16
+DEAL:0::absolute norms = 3.14889e-14 86.9253
+DEAL:0::relative norm distance = 4.26678e-16
+DEAL:0::absolute norms = 5.56336e-14 130.388
+DEAL:0::3d
+DEAL:0::Number of dofs = 1333
+DEAL:0::relative norm distance = 9.45651e-16
+DEAL:0::absolute norms = 3.45260e-14 36.5103
+DEAL:0::relative norm distance = 9.50727e-16
+DEAL:0::absolute norms = 6.94226e-14 73.0205
+DEAL:0::relative norm distance = 9.68398e-16
+DEAL:0::absolute norms = 1.06069e-13 109.531
+
+DEAL:1::2d
+DEAL:1::Number of dofs = 1889
+DEAL:1::relative norm distance = 3.62252e-16
+DEAL:1::absolute norms = 1.57444e-14 43.4626
+DEAL:1::relative norm distance = 3.62252e-16
+DEAL:1::absolute norms = 3.14889e-14 86.9253
+DEAL:1::relative norm distance = 4.26678e-16
+DEAL:1::absolute norms = 5.56336e-14 130.388
+DEAL:1::3d
+DEAL:1::Number of dofs = 1333
+DEAL:1::relative norm distance = 9.45651e-16
+DEAL:1::absolute norms = 3.45260e-14 36.5103
+DEAL:1::relative norm distance = 9.50727e-16
+DEAL:1::absolute norms = 6.94226e-14 73.0205
+DEAL:1::relative norm distance = 9.68398e-16
+DEAL:1::absolute norms = 1.06069e-13 109.531
+
+DEAL:2::2d
+DEAL:2::Number of dofs = 1889
+DEAL:2::relative norm distance = 3.62252e-16
+DEAL:2::absolute norms = 1.57444e-14 43.4626
+DEAL:2::relative norm distance = 3.62252e-16
+DEAL:2::absolute norms = 3.14889e-14 86.9253
+DEAL:2::relative norm distance = 4.26678e-16
+DEAL:2::absolute norms = 5.56336e-14 130.388
+DEAL:2::3d
+DEAL:2::Number of dofs = 1333
+DEAL:2::relative norm distance = 9.45651e-16
+DEAL:2::absolute norms = 3.45260e-14 36.5103
+DEAL:2::relative norm distance = 9.50727e-16
+DEAL:2::absolute norms = 6.94226e-14 73.0205
+DEAL:2::relative norm distance = 9.68398e-16
+DEAL:2::absolute norms = 1.06069e-13 109.531
+

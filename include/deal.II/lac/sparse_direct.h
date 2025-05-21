@@ -35,6 +35,16 @@
 #  include <dmumps_c.h>
 #endif
 
+#ifdef DEAL_II_WITH_TRILINOS
+#  include <deal.II/lac/trilinos_sparse_matrix.h>
+#  include <deal.II/lac/trilinos_vector.h>
+#endif
+
+#ifdef DEAL_II_WITH_PETSC
+#  include <deal.II/lac/petsc_sparse_matrix.h>
+#  include <deal.II/lac/petsc_vector.h>
+#endif
+
 DEAL_II_NAMESPACE_OPEN
 
 namespace types
@@ -523,9 +533,11 @@ public:
     BlockLowRank blr;
   };
   /**
-   * Constructor, takes <tt>AdditionalData</tt> to control MUMPS execution.
+   * Constructor, takes an MPI_Comm which defaults to MPI_COMM_WORLD and an
+   * <tt>AdditionalData</tt> to control MUMPS execution.
    */
-  SparseDirectMUMPS(const AdditionalData &additional_data = AdditionalData());
+  SparseDirectMUMPS(const AdditionalData &additional_data = AdditionalData(),
+                    const MPI_Comm        mpi_comm        = MPI_COMM_WORLD);
 
   /**
    * Destructor
@@ -553,6 +565,14 @@ public:
    */
   void
   vmult(Vector<double> &dst, const Vector<double> &src) const;
+
+  /**
+   * Overload for TrilinosWrappers::MPI::Vector.
+   */
+  template <typename VectorType>
+  void
+  vmult(VectorType &dst, const VectorType &src) const;
+
 
   /**
    * A function in which the inverse of the transposed matrix is applied to the
@@ -583,10 +603,13 @@ private:
 
   std::unique_ptr<double[]>   a;
   mutable std::vector<double> rhs;
+  mutable std::vector<int>    irhs_loc;
   std::unique_ptr<int[]>      irn;
   std::unique_ptr<int[]>      jcn;
   types::global_dof_index     n;
   types::global_dof_index     nz;
+
+  IndexSet row_range; // locally owned rows
 
   /**
    * This function initializes a MUMPS instance and hands over the system's
@@ -607,6 +630,11 @@ private:
    */
   void
   copy_rhs_to_mumps(const Vector<double> &rhs) const;
+
+  /**
+   * MPI_Comm object for the MUMPS solver.
+   */
+  MPI_Comm mpi_communicator;
 
   /**
    * Struct that holds the additional data for the MUMPS solver.
