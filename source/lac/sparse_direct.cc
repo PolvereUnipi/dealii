@@ -32,6 +32,8 @@
 
 #ifdef DEAL_II_WITH_MUMPS
 #  include <dmumps_c.h>
+
+#  define MUMPS_INFO(I) info[(I)-1]
 #endif
 
 DEAL_II_NAMESPACE_OPEN
@@ -870,6 +872,10 @@ SparseDirectMUMPS::SparseDirectMUMPS(const AdditionalData &data,
   id.job = -1;
   id.par = 1;
 
+  const unsigned int n_ranks =
+    Utilities::MPI::n_mpi_processes(mpi_communicator);
+  row_starts.resize(n_ranks);
+
   Assert(!(additional_data.symmetric == false &&
            additional_data.posdef == true),
          ExcMessage(
@@ -998,10 +1004,9 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                      std::is_same_v<PETScWrappers::MPI::SparseMatrix, Matrix>)
     {
       // Distributed matrix case
-      id.icntl[17]               = 3; // distributed matrix assembly
-      id.nnz                     = matrix.n_nonzero_elements();
-      nnz                        = id.nnz;
-      size_type n_non_zero_local = 0;
+      id.icntl[17] = 3; // distributed matrix assembly
+      id.nnz       = matrix.n_nonzero_elements();
+      nnz          = id.nnz;
 
       // Get the range of rows owned by this process
       row_range                 = matrix.locally_owned_range_indices();
@@ -1029,6 +1034,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       a   = std::make_unique<double[]>(local_non_zeros);
       irhs_loc.resize(row_range.n_elements());
 
+      size_type k = 0;
       if (additional_data.symmetric == true)
         {
           for (const auto &row : row_range)
@@ -1040,12 +1046,12 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                     const int global_col = it->column() + 1;
 
                     // Store this non-zero entry
-                    irn[n_non_zero_local] = global_row;
-                    jcn[n_non_zero_local] = global_col;
-                    a[n_non_zero_local]   = it->value();
+                    irn[k] = global_row;
+                    jcn[k] = global_col;
+                    a[k]   = it->value();
 
                     // Count local non-zeros
-                    n_non_zero_local++;
+                    k++;
                   }
 
               const types::global_cell_index local_index =
@@ -1065,12 +1071,12 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                       const int global_row = row + 1;
                       const int global_col = it->column() + 1;
 
-                      irn[n_non_zero_local] = global_row;
-                      jcn[n_non_zero_local] = global_col;
-                      a[n_non_zero_local]   = it->value();
+                      irn[k] = global_row;
+                      jcn[k] = global_col;
+                      a[k]   = it->value();
 
                       // Count local non-zeros
-                      n_non_zero_local++;
+                      k++;
                     }
                 }
 
@@ -1081,7 +1087,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
         }
 
       // Hand over local arrays to MUMPS
-      id.nnz_loc  = n_non_zero_local;
+      id.nnz_loc  = k;
       id.irn_loc  = irn.get();
       id.jcn_loc  = jcn.get();
       id.a_loc    = a.get();
@@ -1089,10 +1095,22 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
 
       // rhs parameters
       id.icntl[19] = 10; // distributed rhs
-      id.icntl[20] = 0;  // centralized solution, stored on rank 0 by MUMPS
+      id.icntl[20] = 1;  // distributed solution
       id.nrhs      = 1;
       id.lrhs_loc  = n;
       id.nloc_rhs  = row_range.n_elements();
+
+      // save the index of the first row of this process, and exchange it with
+      // all other ranks
+      first_row_index = *row_range.at(0);
+
+      MPI_Allgather(&first_row_index,
+                    1,
+                    MPI_INT,
+                    row_starts.data(),
+                    1,
+                    MPI_INT,
+                    mpi_communicator);
     }
   else
     {
@@ -1184,41 +1202,41 @@ SparseDirectMUMPS::vmult(VectorType &dst, const VectorType &src) const
         id.rhs_loc = const_cast<double *>(src.begin());
       else if constexpr (std::is_same_v<VectorType, PETScWrappers::MPI::Vector>)
         {
-          PetscScalar *local_array;
-          VecGetArray(
-            const_cast<PETScWrappers::MPI::Vector &>(src).petsc_vector(),
-            &local_array);
-          id.rhs_loc = local_array;
-          VecRestoreArray(
-            const_cast<PETScWrappers::MPI::Vector &>(src).petsc_vector(),
-            &local_array);
+          const PetscScalar *local_array;
+          VecGetArrayRead(const_cast<VectorType &>(src).petsc_vector(),
+                          &local_array);
+          id.rhs_loc = const_cast<double *>(local_array);
+          VecRestoreArrayRead(const_cast<VectorType &>(src).petsc_vector(),
+                              &local_array);
         }
 
-
-      if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-        {
-          rhs.resize(id.lrhs_loc);
-          id.rhs = rhs.data();
-        }
+      id.lsol_loc = id.MUMPS_INFO(23);
+      id.isol_loc = new types::mumps_index[id.lsol_loc];
+      id.sol_loc  = new double[id.lsol_loc];
 
       // Start solver
       id.job = 3;
       dmumps_c(&id);
 
-      // Copy solution into the given vector
-      // For MUMPS with centralized solution (icntl[20]=0), the solution is only
-      // on the root process (0) and needs to be distributed to all processes
-      if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+      // We need to copy the solution from MUMPS into the distributed vector
+      if constexpr (std::is_same_v<VectorType, TrilinosWrappers::MPI::Vector>)
+        mumps_distributed_to_deal_distributed(id.isol_loc,
+                                              id.sol_loc,
+                                              dst.begin());
+      else if constexpr (std::is_same_v<VectorType, PETScWrappers::MPI::Vector>)
         {
-          // Set all the values in the dst vector
-          for (size_type i = 0; i < n; ++i)
-            dst[i] = rhs[i];
+          PetscScalar *local_array;
+          VecGetArray(dst.petsc_vector(), &local_array);
+          mumps_distributed_to_deal_distributed(id.isol_loc,
+                                                id.sol_loc,
+                                                local_array);
+          VecRestoreArray(dst.petsc_vector(), &local_array);
         }
 
-      // Ensure the distributed vector has the correct values everywhere
       dst.compress(VectorOperation::insert);
 
-      rhs.resize(0); // remove rhs again
+      delete[] id.sol_loc;
+      delete[] id.isol_loc;
     }
 }
 
@@ -1244,6 +1262,139 @@ SparseDirectMUMPS::get_icntl()
 {
   return id.icntl;
 }
+
+
+
+int
+SparseDirectMUMPS::get_owner_of_idx(int i) const
+{
+  // If only one rank, return 0
+  if (row_starts.size() == 1)
+    return 0;
+
+  return std::distance(row_starts.begin(),
+                       std::upper_bound(row_starts.begin(),
+                                        row_starts.end(),
+                                        i)) -
+         1;
+}
+
+
+
+void
+SparseDirectMUMPS::mumps_distributed_to_deal_distributed(
+  const types::mumps_index *isol_loc,
+  const double             *mumps_sol,
+  double                   *dst_vector) const
+{
+  const unsigned int n_ranks =
+    Utilities::MPI::n_mpi_processes(mpi_communicator);
+  const int this_rank = Utilities::MPI::this_mpi_process(mpi_communicator);
+
+  // local size of the solution vector returned by MUMPS
+  const int local_size = id.MUMPS_INFO(23);
+
+  // determine data to be sent/received by each rank
+  std::vector<int> send_count(n_ranks, 0);
+
+  // count how many entries need to be sent to each rank
+  for (int i = 0; i < local_size; i++)
+    {
+      int global_row = isol_loc[i] - 1;
+      int row_rank   = get_owner_of_idx(global_row);
+      if (this_rank != row_rank)
+        {
+          send_count[row_rank]++;
+        }
+    }
+
+  // exchange send/receive counts
+  std::vector<int> recv_count(n_ranks);
+  MPI_Alltoall(send_count.data(),
+               1,
+               MPI_INT,
+               recv_count.data(),
+               1,
+               MPI_INT,
+               mpi_communicator);
+
+  // allocate displacements and buffer sizes for both values and indices
+  std::vector<int> send_displ(n_ranks);
+  std::vector<int> recv_displ(n_ranks);
+  send_displ[0] = 0;
+  recv_displ[0] = 0;
+
+  int send_buffer_size = 0;
+  int recv_buffer_size = 0;
+
+  for (unsigned int k = 0; k < n_ranks - 1; k++)
+    {
+      send_buffer_size += send_count[k];
+      recv_buffer_size += recv_count[k];
+      send_displ[k + 1] = send_displ[k] + send_count[k];
+      recv_displ[k + 1] = recv_displ[k] + recv_count[k];
+    }
+
+  // a communication buffers
+  std::vector<int>    sendbuf_index(send_buffer_size);
+  std::vector<double> sendbuf_values(send_buffer_size);
+  std::vector<int>    current_offset(n_ranks, 0);
+
+  // process local entries and prepare data to send
+  for (int i = 0; i < local_size; i++)
+    {
+      int global_row = isol_loc[i] - 1;
+      int row_rank   = get_owner_of_idx(global_row);
+
+      if (this_rank == row_rank)
+        {
+          // fill entries already on this rank
+          int local_index         = global_row - first_row_index;
+          dst_vector[local_index] = mumps_sol[i];
+        }
+      else
+        {
+          int offset = send_displ[row_rank] + current_offset[row_rank];
+          sendbuf_index[offset]  = global_row;
+          sendbuf_values[offset] = mumps_sol[i];
+          current_offset[row_rank]++;
+        }
+    }
+
+  // exchange data with two AlltoAll calls
+  std::vector<int> recvbuf_index(
+    recv_buffer_size); // buffer for received indices
+  std::vector<double> recvbuf_values(
+    recv_buffer_size); // buffer for received values
+
+  MPI_Alltoallv(sendbuf_index.data(),
+                send_count.data(),
+                send_displ.data(),
+                MPI_INT,
+                recvbuf_index.data(),
+                recv_count.data(),
+                recv_displ.data(),
+                MPI_INT,
+                mpi_communicator);
+
+  MPI_Alltoallv(sendbuf_values.data(),
+                send_count.data(),
+                send_displ.data(),
+                MPI_DOUBLE,
+                recvbuf_values.data(),
+                recv_count.data(),
+                recv_displ.data(),
+                MPI_DOUBLE,
+                mpi_communicator);
+
+  // process the received data
+  for (int i = 0; i < recv_buffer_size; i++)
+    {
+      int local_index         = recvbuf_index[i] - first_row_index;
+      dst_vector[local_index] = recvbuf_values[i];
+    }
+}
+
 
 
 #else

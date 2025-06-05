@@ -628,7 +628,6 @@ public:
 private:
 #ifdef DEAL_II_WITH_MUMPS
   mutable DMUMPS_STRUC_C id;
-
 #endif // DEAL_II_WITH_MUMPS
 
   /**
@@ -702,6 +701,42 @@ private:
    * MPI_Comm object for the MUMPS solver.
    */
   const MPI_Comm mpi_communicator;
+
+  /**
+   * When solving linear systems in parallel with MUMPS, both the matrix and
+   * solution vector are distributed across multiple MPI processes. However,
+   * MUMPS uses its own distribution scheme, which doesn't necessarily match the
+   * original deal.II's distribution of rows among MPI processes. This function
+   * performs the redistribution needed to make the data compatible with the
+   * original distribution of rows. This function is hence used after the solve
+   * phase, in order to return a solution vector which has the same parallel
+   * layout of the sourc vector.
+   * The first argument of this function is an array of indices returned by
+   * MUMPS after the solution phase which contains the indices of the variables
+   * for which the solution is available on the local processor.
+   */
+  void
+  mumps_distributed_to_deal_distributed(const types::mumps_index *isol_loc,
+                                        const double *mumps_solution,
+                                        double       *deal_solution) const;
+
+  /*
+   * Get the MPI rank owning the i-th row of the matrix.
+   */
+  types::mumps_index
+  get_owner_of_idx(types::mumps_index i) const;
+
+  /**
+   * Vector with length the number of MPI processes, where each entry
+   * contains the starting index of the rows owned by the
+   * corresponding MPI process.
+   */
+  std::vector<int> row_starts;
+
+  /**
+   * The index of the first row local to the current process.
+   */
+  types::mumps_index first_row_index;
 };
 
 DEAL_II_NAMESPACE_CLOSE
