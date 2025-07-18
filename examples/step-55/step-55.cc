@@ -18,9 +18,8 @@
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/timer.h>
+#include <deal.II/grid/grid_in.h>
 
-// The following chunk out code is identical to step-40 and allows
-// switching between PETSc and Trilinos:
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
@@ -80,22 +79,10 @@ namespace Step55
 {
   using namespace dealii;
 
-  // @sect3{Linear solvers and preconditioners}
 
-  // We need a few helper classes to represent our solver strategy
-  // described in the introduction.
 
   namespace LinearSolvers
   {
-    // This class exposes the action of applying the inverse of a
-    // giving matrix via the function
-    // InverseMatrix::vmult(). Internally, the inverse is not formed
-    // explicitly. Instead, a linear solver with CG is performed. This
-    // class extends the InverseMatrix class in step-22 with an option
-    // to specify a preconditioner, and to allow for different vector
-    // types in the vmult function. We use the same mechanism as in
-    // step-31 to convert a run-time exception into a failed assertion
-    // should the inner solver not converge.
     template <class Matrix, class Preconditioner>
     class InverseMatrix : public EnableObserverPointer
     {
@@ -142,8 +129,6 @@ namespace Step55
     }
 
 
-    // The class A template class for a simple block diagonal preconditioner
-    // for 2x2 matrices.
     template <class PreconditionerA, class PreconditionerS>
     class BlockDiagonalPreconditioner : public EnableObserverPointer
     {
@@ -179,10 +164,7 @@ namespace Step55
 
   } // namespace LinearSolvers
 
-  // @sect3{Problem setup}
 
-  // The following classes represent the right hand side and the exact
-  // solution for the test problem.
 
   template <int dim>
   class RightHandSide : public Function<dim>
@@ -207,7 +189,6 @@ namespace Step55
     constexpr double pi  = numbers::PI;
     constexpr double pi2 = numbers::PI * numbers::PI;
 
-    // velocity
     values[0] = -1.0L / 2.0L * (-2 * std::sqrt(25.0 + 4 * pi2) + 10.0) *
                   std::exp(R_x * (-2 * std::sqrt(25.0 + 4 * pi2) + 10.0)) -
                 0.4 * pi2 * std::exp(R_x * (-std::sqrt(25.0 + 4 * pi2) + 5.0)) *
@@ -224,7 +205,6 @@ namespace Step55
                   std::exp(R_x * (-std::sqrt(25.0 + 4 * pi2) + 5.0)) *
                   std::sin(2 * R_y * pi) / pi;
 
-    // pressure
     values[dim] = 0;
   }
 
@@ -251,7 +231,6 @@ namespace Step55
     constexpr double pi  = numbers::PI;
     constexpr double pi2 = numbers::PI * numbers::PI;
 
-    // velocity
     values[0] = -std::exp(R_x * (-std::sqrt(25.0 + 4 * pi2) + 5.0)) *
                   std::cos(2 * R_y * pi) +
                 1;
@@ -259,7 +238,6 @@ namespace Step55
                 std::exp(R_x * (-std::sqrt(25.0 + 4 * pi2) + 5.0)) *
                 std::sin(2 * R_y * pi) / pi;
 
-    // pressure
     values[dim] =
       -1.0L / 2.0L * std::exp(R_x * (-2 * std::sqrt(25.0 + 4 * pi2) + 10.0)) -
       2.0 *
@@ -279,13 +257,6 @@ namespace Step55
 
 
 
-  // @sect3{The main program}
-  //
-  // The main class is very similar to step-40, except that matrices and
-  // vectors are now block versions, and we store a std::vector<IndexSet>
-  // for owned and relevant DoFs instead of a single IndexSet. We have
-  // exactly two IndexSets, one for all velocity unknowns and one for all
-  // pressure unknowns.
   template <int dim>
   class StokesProblem
   {
@@ -346,20 +317,19 @@ namespace Step55
   {}
 
 
-  // The Kovasznay flow is defined on the domain [-0.5, 1.5]^2, which we
-  // create by passing the min and max values to GridGenerator::hyper_cube.
   template <int dim>
   void StokesProblem<dim>::make_grid()
   {
-    GridGenerator::hyper_cube(triangulation, -0.5, 1.5);
-    triangulation.refine_global(3);
+    // GridGenerator::hyper_cube(triangulation, -0.5, 1.5);
+    // triangulation.refine_global(3);
+    GridIn<dim> grid_in;
+    grid_in.attach_triangulation(triangulation);
+
+    std::ifstream input_file("bimba.vtk");
+
+    grid_in.read_vtk(input_file);
   }
 
-  // @sect3{System Setup}
-  //
-  // The construction of the block matrices and vectors is new compared to
-  // step-40 and is different compared to serial codes like step-22, because
-  // we need to supply the set of rows that belong to our processor.
   template <int dim>
   void StokesProblem<dim>::setup_system()
   {
@@ -367,9 +337,6 @@ namespace Step55
 
     dof_handler.distribute_dofs(fe);
 
-    // Put all dim velocities into block 0 and the pressure into block 1,
-    // then reorder the unknowns by block. Finally count how many unknowns
-    // we have per block.
     std::vector<unsigned int> stokes_sub_blocks(dim + 1, 0);
     stokes_sub_blocks[dim] = 1;
     DoFRenumbering::component_wise(dof_handler, stokes_sub_blocks);
@@ -383,9 +350,6 @@ namespace Step55
     pcout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << " ("
           << n_u << '+' << n_p << ')' << std::endl;
 
-    // We split up the IndexSet for locally owned and locally relevant DoFs
-    // into two IndexSets based on how we want to create the block matrices
-    // and vectors.
     const IndexSet &locally_owned_dofs = dof_handler.locally_owned_dofs();
     owned_partitioning                 = {locally_owned_dofs.get_view(0, n_u),
                                           locally_owned_dofs.get_view(n_u, n_u + n_p)};
@@ -395,11 +359,6 @@ namespace Step55
     relevant_partitioning = {locally_relevant_dofs.get_view(0, n_u),
                              locally_relevant_dofs.get_view(n_u, n_u + n_p)};
 
-    // Setting up the constraints for boundary conditions and hanging nodes
-    // is identical to step-40. Even though we don't have any hanging nodes
-    // because we only perform global refinement, it is still a good idea
-    // to put this function call in, in case adaptive refinement gets
-    // introduced later.
     {
       constraints.reinit(locally_owned_dofs, locally_relevant_dofs);
 
@@ -413,12 +372,6 @@ namespace Step55
       constraints.close();
     }
 
-    // Now we create the system matrix based on a BlockDynamicSparsityPattern.
-    // We know that we won't have coupling between different velocity
-    // components (because we use the laplace and not the deformation tensor)
-    // and no coupling between pressure with its test functions, so we use
-    // a Table to communicate this coupling information to
-    // DoFTools::make_sparsity_pattern.
     {
       system_matrix.clear();
 
@@ -446,9 +399,6 @@ namespace Step55
       system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
     }
 
-    // The preconditioner matrix has a different coupling (we only fill in
-    // the 1,1 block with the @ref GlossMassMatrix "mass matrix"), otherwise this code is identical
-    // to the construction of the system_matrix above.
     {
       preconditioner_matrix.clear();
 
@@ -473,9 +423,6 @@ namespace Step55
       preconditioner_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
     }
 
-    // Finally, we construct the block vectors with the right sizes. The
-    // function call with two std::vector<IndexSet> will create a ghosted
-    // vector.
     locally_relevant_solution.reinit(owned_partitioning,
                                      relevant_partitioning,
                                      mpi_communicator);
@@ -484,10 +431,6 @@ namespace Step55
 
 
 
-  // @sect3{Assembly}
-  //
-  // This function assembles the system matrix, the preconditioner matrix,
-  // and the right hand side. The code is pretty standard.
   template <int dim>
   void StokesProblem<dim>::assemble_system()
   {
@@ -583,12 +526,6 @@ namespace Step55
 
 
 
-  // @sect3{Solving}
-  //
-  // This function solves the linear system with MINRES with a block diagonal
-  // preconditioner and AMG for the two diagonal blocks as described in the
-  // introduction. The preconditioner applies a v cycle to the 0,0 block
-  // and a CG with the mass matrix for the 1,1 block (the Schur complement).
   template <int dim>
   void StokesProblem<dim>::solve()
   {
@@ -614,20 +551,15 @@ namespace Step55
       prec_S.initialize(preconditioner_matrix.block(1, 1), data);
     }
 
-    // The InverseMatrix is used to solve for the mass matrix:
     using mp_inverse_t = LinearSolvers::InverseMatrix<LA::MPI::SparseMatrix,
                                                       LA::MPI::PreconditionAMG>;
     const mp_inverse_t mp_inverse(preconditioner_matrix.block(1, 1), prec_S);
 
-    // This constructs the block preconditioner based on the preconditioners
-    // for the individual blocks defined above.
     const LinearSolvers::BlockDiagonalPreconditioner<LA::MPI::PreconditionAMG,
                                                      mp_inverse_t>
       preconditioner(prec_A, mp_inverse);
 
-    // With that, we can finally set up the linear solver and solve the system:
-    SolverControl solver_control(system_matrix.m(),
-                                 1e-10 * system_rhs.l2_norm());
+    SolverControl solver_control(system_matrix.m(), 1e-3);
 
     SolverMinRes<LA::MPI::BlockVector> solver(solver_control);
 
@@ -636,6 +568,7 @@ namespace Step55
 
     constraints.set_zero(distributed_solution);
 
+    pcout << "Started solver" << std::endl;
     solver.solve(system_matrix,
                  distributed_solution,
                  system_rhs,
@@ -646,9 +579,6 @@ namespace Step55
 
     constraints.distribute(distributed_solution);
 
-    // Like in step-56, we subtract the mean pressure to allow error
-    // computations against our reference solution, which has a mean value
-    // of zero.
     locally_relevant_solution = distributed_solution;
     const double mean_pressure =
       VectorTools::compute_mean_value(dof_handler,
@@ -661,10 +591,6 @@ namespace Step55
 
 
 
-  // @sect3{The rest}
-  //
-  // The remainder of the code that deals with mesh refinement, output, and
-  // the main loop is pretty standard.
   template <int dim>
   void StokesProblem<dim>::refine_grid()
   {
@@ -810,7 +736,7 @@ int main(int argc, char *argv[])
 
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-      StokesProblem<2> problem(2);
+      StokesProblem<3> problem(2);
       problem.run();
     }
   catch (std::exception &exc)

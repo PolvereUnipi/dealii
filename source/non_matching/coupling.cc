@@ -608,9 +608,11 @@ namespace NonMatching
                         }
                   }
 
-                // Now assemble the matrices
-                constraints.distribute_local_to_global(
-                  cell_matrix, odofs, immersed_constraints, dofs, matrix);
+                // // Now assemble the matrices
+                // constraints.distribute_local_to_global(
+                //   cell_matrix, odofs, immersed_constraints, dofs, matrix);
+
+                matrix.add(odofs, dofs, cell_matrix);
               }
           }
       }
