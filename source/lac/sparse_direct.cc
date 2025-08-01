@@ -1282,11 +1282,14 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       blkvar = std::make_unique<MUMPS_INT[]>(matrix.m());
 
       types::global_dof_index idx = 0;
-      for (types::global_dof_index b = 0; b < row_indices.size(); ++b)
+      for (unsigned int block_idx = 0; block_idx < row_indices.size();
+           ++block_idx)
         {
-          for (types::global_dof_index j = 0; j < row_indices.block_size(b);
+          for (types::global_dof_index j = 0;
+               j < row_indices.block_size(block_idx);
                ++j)
-            blkvar[idx++] = row_indices.block_start(b) + j + 1; // 1-based
+            blkvar[idx++] =
+              row_indices.block_start(block_idx) + j + 1; // 1-based
         }
 
       id.blkvar = blkvar.get();
