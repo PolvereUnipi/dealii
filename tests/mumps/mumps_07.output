@@ -1,0 +1,13 @@
+
+DEAL::1d
+DEAL::Number of dofs = 97
+DEAL::Block Sparse Factorization
+DEAL::Ok
+DEAL::2d
+DEAL::Number of dofs = 994
+DEAL::Block Sparse Factorization
+DEAL::Ok
+DEAL::3d
+DEAL::Number of dofs = 669
+DEAL::Block Sparse Factorization
+DEAL::Ok
