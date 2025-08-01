@@ -36,11 +36,13 @@
 #endif
 
 #ifdef DEAL_II_WITH_TRILINOS
+#  include <deal.II/lac/trilinos_block_sparse_matrix.h>
 #  include <deal.II/lac/trilinos_sparse_matrix.h>
 #  include <deal.II/lac/trilinos_vector.h>
 #endif
 
 #ifdef DEAL_II_WITH_PETSC
+#  include <deal.II/lac/petsc_block_sparse_matrix.h>
 #  include <deal.II/lac/petsc_sparse_matrix.h>
 #  include <deal.II/lac/petsc_vector.h>
 #endif
@@ -662,6 +664,17 @@ private:
   std::unique_ptr<types::mumps_index[]> jcn;
 
   /**
+   * blkptr contains the block pointers for the matrix. It is used only if the
+   * matrix is a block sparse matrix.
+   */
+  std::unique_ptr<types::mumps_index[]> blkptr;
+
+  /**
+   * blkvar contains the block variable indices for the matrix. It is used only
+   * if the matrix is a block sparse matrix.
+   */
+  std::unique_ptr<types::mumps_index[]> blkvar;
+  /**
    * The number of rows of the matrix. The matrix is square.
    */
   types::global_dof_index n;
@@ -687,14 +700,16 @@ private:
   /**
    * Copy the computed solution into the solution vector.
    */
+  template <typename VectorType>
   void
-  copy_solution(Vector<double> &vector) const;
+  copy_solution(VectorType &vector) const;
 
   /**
    * Copy the right-hand side vector into the MUMPS instance.
    */
+  template <typename VectorType>
   void
-  copy_rhs_to_mumps(const Vector<double> &rhs) const;
+  copy_rhs_to_mumps(const VectorType &rhs) const;
 
   /**
    * Struct that holds the additional data for the MUMPS solver.

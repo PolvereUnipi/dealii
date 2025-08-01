@@ -36,10 +36,13 @@ DEAL_II_NAMESPACE_OPEN
 namespace TrilinosWrappers
 {
   class SparseMatrix;
+  class BlockSparseMatrix;
+
   namespace MPI
   {
     class SparseMatrix;
     class Vector;
+    class BlockVector;
   } // namespace MPI
 } // namespace TrilinosWrappers
 namespace PETScWrappers
@@ -47,7 +50,9 @@ namespace PETScWrappers
   namespace MPI
   {
     class SparseMatrix;
+    class BlockSparseMatrix;
     class Vector;
+    class BlockVector;
   } // namespace MPI
 } // namespace PETScWrappers
 
@@ -946,10 +951,18 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
   n    = matrix.n();
   id.n = n;
 
-  if constexpr (std::is_same_v<Matrix, SparseMatrix<double>>)
+  static constexpr bool is_block_matrix =
+    std::is_same_v<Matrix, BlockSparseMatrix<double>> ||
+    std::is_same_v<Matrix, TrilinosWrappers::BlockSparseMatrix> ||
+    std::is_same_v<Matrix, PETScWrappers::MPI::BlockSparseMatrix>;
+
+
+  if constexpr (std::is_same_v<Matrix, SparseMatrix<double>> ||
+                std::is_same_v<Matrix, BlockSparseMatrix<double>>)
     {
       // Serial matrix: hand over matrix to MUMPS as centralized assembled
       // matrix
+
       if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
         {
           // number of nonzero elements in matrix
@@ -1247,12 +1260,43 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
     {
       DEAL_II_NOT_IMPLEMENTED();
     }
+
+  if constexpr (is_block_matrix)
+    {
+      id.icntl[14] = 0;                     // block sparse matrix
+      id.nblk      = matrix.n_block_rows(); // number of blocks
+      blkptr       = std::make_unique<MUMPS_INT[]>(id.nblk + 1);
+
+      const BlockIndices &row_indices = matrix.get_row_indices();
+      Assert(static_cast<int>(row_indices.size()) == id.nblk,
+             ExcMessage("Incompatible block structure."));
+
+      // starting index for i-th block
+      for (types::global_dof_index i = 0; i < row_indices.size(); ++i)
+        blkptr[i] = row_indices.block_start(i) + 1;
+
+      blkptr[id.nblk] = matrix.m() + 1; // last block ends at m+1
+
+      id.blkptr = blkptr.get();
+
+      blkvar = std::make_unique<MUMPS_INT[]>(matrix.m());
+
+      types::global_dof_index idx = 0;
+      for (types::global_dof_index b = 0; b < row_indices.size(); ++b)
+        {
+          for (types::global_dof_index j = 0; j < row_indices.block_size(b);
+               ++j)
+            blkvar[idx++] = row_indices.block_start(b) + j + 1; // 1-based
+        }
+
+      id.blkvar = blkvar.get();
+    }
 }
 
 
-
+template <typename VectorType>
 void
-SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs) const
+SparseDirectMUMPS::copy_rhs_to_mumps(const VectorType &new_rhs) const
 {
   Assert(n == new_rhs.size(),
          ExcMessage("Matrix size and rhs length must be equal."));
@@ -1268,9 +1312,9 @@ SparseDirectMUMPS::copy_rhs_to_mumps(const Vector<double> &new_rhs) const
 }
 
 
-
+template <typename VectorType>
 void
-SparseDirectMUMPS::copy_solution(Vector<double> &vector) const
+SparseDirectMUMPS::copy_solution(VectorType &vector) const
 {
   Assert(n == vector.size(),
          ExcMessage("Matrix size and solution vector length must be equal."));
@@ -1313,7 +1357,8 @@ SparseDirectMUMPS::vmult(VectorType &dst, const VectorType &src) const
   Assert(n == src.size(), ExcMessage("Source vector has the wrong size."));
 
 
-  if constexpr (std::is_same_v<VectorType, Vector<double>>)
+  if constexpr (std::is_same_v<VectorType, Vector<double>> ||
+                std::is_same_v<VectorType, BlockVector<double>>)
     {
       // Centralized assembly for serial vectors.
 
@@ -1467,23 +1512,43 @@ InstantiateUMFPACK(BlockSparseMatrix<std::complex<float>>);
     template void SparseDirectMUMPS::Tvmult(VECTOR &, const VECTOR &) const;
 #  ifdef DEAL_II_WITH_TRILINOS
 InstantiateMUMPSMatVec(TrilinosWrappers::MPI::Vector)
+  InstantiateMUMPSMatVec(TrilinosWrappers::MPI::BlockVector)
 #  endif
 #  ifdef DEAL_II_WITH_PETSC
-  InstantiateMUMPSMatVec(PETScWrappers::MPI::Vector)
+    InstantiateMUMPSMatVec(PETScWrappers::MPI::Vector)
+      InstantiateMUMPSMatVec(PETScWrappers::MPI::BlockVector)
 #  endif
-    InstantiateMUMPSMatVec(Vector<double>)
+        InstantiateMUMPSMatVec(Vector<double>)
+          InstantiateMUMPSMatVec(BlockVector<double>)
 
 #  define InstantiateMUMPS(MATRIX) \
     template void SparseDirectMUMPS::initialize(const MATRIX &);
 
-      InstantiateMUMPS(SparseMatrix<double>)
-        InstantiateMUMPS(SparseMatrix<float>)
+            InstantiateMUMPS(SparseMatrix<double>)
+              InstantiateMUMPS(SparseMatrix<float>)
+
+
+#  define COPY_RHS_TO_MUMPS(VECTOR) \
+    template void SparseDirectMUMPS::copy_rhs_to_mumps(const VECTOR &) const;
+
+                COPY_RHS_TO_MUMPS(Vector<double>)
+                  COPY_RHS_TO_MUMPS(BlockVector<double>)
+
+
+#  define COPY_SOLUTION(VECTOR) \
+    template void SparseDirectMUMPS::copy_solution(VECTOR &) const;
+                    COPY_SOLUTION(Vector<double>)
+                      COPY_SOLUTION(BlockVector<double>)
+
 #  ifdef DEAL_II_WITH_TRILINOS
-          InstantiateMUMPS(TrilinosWrappers::SparseMatrix)
+                        InstantiateMUMPS(TrilinosWrappers::SparseMatrix)
+                          InstantiateMUMPS(TrilinosWrappers::BlockSparseMatrix)
 #  endif
 #  ifdef DEAL_II_WITH_PETSC
-            InstantiateMUMPS(PETScWrappers::SparseMatrix)
-              InstantiateMUMPS(PETScWrappers::MPI::SparseMatrix)
+                            InstantiateMUMPS(PETScWrappers::SparseMatrix)
+                              InstantiateMUMPS(PETScWrappers::MPI::SparseMatrix)
+                                InstantiateMUMPS(
+                                  PETScWrappers::MPI::BlockSparseMatrix)
 #  endif
   // InstantiateMUMPS(SparseMatrixEZ<double>)
   // InstantiateMUMPS(SparseMatrixEZ<float>)
