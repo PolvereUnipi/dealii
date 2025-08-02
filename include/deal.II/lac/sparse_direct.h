@@ -674,8 +674,9 @@ private:
    * if the matrix is a block sparse matrix.
    */
   std::unique_ptr<types::mumps_index[]> blkvar;
+
   /**
-   * The number of rows of the matrix. The matrix is square.
+   * The number of rows of the matrix. The matrix is assumed to be square.
    */
   types::global_dof_index n;
 

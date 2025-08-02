@@ -1039,7 +1039,17 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       size_type n_non_zero_local = 0;
 
       // Get the range of rows owned by this process
-      locally_owned_rows        = matrix.locally_owned_range_indices();
+
+      if constexpr (is_block_matrix)
+        {
+          auto row_indices = matrix.locally_owned_range_indices();
+          for (unsigned int i = 0; i < row_indices.size(); ++i)
+            locally_owned_rows.add_indices(row_indices[i].begin(),
+                                           row_indices[i].end());
+        }
+      else
+        locally_owned_rows = matrix.locally_owned_range_indices();
+
       size_type local_non_zeros = 0;
 
       if constexpr (std::is_same_v<Matrix, TrilinosWrappers::SparseMatrix>)
@@ -1051,9 +1061,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                                         PETScWrappers::MPI::SparseMatrix>)
         {
 #  ifdef DEAL_II_WITH_PETSC
-          Mat &petsc_matrix =
-            const_cast<PETScWrappers::MPI::SparseMatrix &>(matrix)
-              .petsc_matrix();
+          Mat    &petsc_matrix = const_cast<Matrix &>(matrix).petsc_matrix();
           MatInfo info;
           MatGetInfo(petsc_matrix, MAT_LOCAL, &info);
           local_non_zeros = (size_type)info.nz_used;
@@ -1074,9 +1082,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                                        PETScWrappers::MPI::SparseMatrix>)
             {
 #  ifdef DEAL_II_WITH_PETSC
-              Mat &petsc_matrix =
-                const_cast<PETScWrappers::MPI::SparseMatrix &>(matrix)
-                  .petsc_matrix();
+              Mat &petsc_matrix = const_cast<Matrix &>(matrix).petsc_matrix();
 
               PetscInt rstart, rend;
               MatGetOwnershipRange(petsc_matrix, &rstart, &rend);
@@ -1164,9 +1170,7 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
                                        PETScWrappers::MPI::SparseMatrix>)
             {
 #  ifdef DEAL_II_WITH_PETSC
-              Mat &petsc_matrix =
-                const_cast<PETScWrappers::MPI::SparseMatrix &>(matrix)
-                  .petsc_matrix();
+              Mat &petsc_matrix = const_cast<Matrix &>(matrix).petsc_matrix();
 
               PetscInt rstart, rend;
               MatGetOwnershipRange(petsc_matrix, &rstart, &rend);
@@ -1261,6 +1265,8 @@ SparseDirectMUMPS::initialize_matrix(const Matrix &matrix)
       DEAL_II_NOT_IMPLEMENTED();
     }
 
+  // If we have a block matrix, we can inform MUMPS about how blocks are
+  // partitioned
   if constexpr (is_block_matrix)
     {
       id.icntl[14] = 0;                     // block sparse matrix
